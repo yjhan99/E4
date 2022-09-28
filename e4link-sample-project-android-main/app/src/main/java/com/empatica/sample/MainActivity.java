@@ -8,6 +8,7 @@ import android.bluetooth.le.ScanCallback;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Observable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -41,60 +42,80 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+/* Import for the JSON object creation */
+import javax.json.*;
+
 
 public class MainActivity extends AppCompatActivity implements EmpaDataDelegate, EmpaStatusDelegate {
 
+    /* Static variables */
     private static final String TAG = "MainActivity";
-
     private static final int REQUEST_ENABLE_BT = 1;
-
     private static final int REQUEST_PERMISSION_ACCESS_COARSE_LOCATION = 1;
-
-
-    private static final String EMPATICA_API_KEY = "6f7968661ed54d468639875a3a9d5920"; // TODO insert your API Key here
-
+    private static final String EMPATICA_API_KEY = "6f7968661ed54d468639875a3a9d5920";
 
     private EmpaDeviceManager deviceManager = null;
 
+    //region INTERFACE LABELS
+    /* Accelerometer axis labels */
     private TextView accel_xLabel;
     private TextView accel_yLabel;
     private TextView accel_zLabel;
+
+    /* Physiological sensors labels */
     private TextView bvpLabel;
     private TextView edaLabel;
     private TextView ibiLabel;
     private TextView temperatureLabel;
 
+    /* Device status info */
     private TextView batteryLabel;
     private TextView statusLabel;
     private TextView deviceNameLabel;
+    //endregion
 
-    private LinearLayout dataCnt;
+    private LinearLayout dataCnt; //arranges views
 
     private Long now;
     private String time;
 
+    //region DATA E4 SENSORS VARIABLES
+    /* Accelerometer variables */
     private String accel_xData;
     private String accel_yData;
     private String accel_zData;
     private String accel_time;
     private File acccsvFile;
     private boolean accheader = true;
+    private JsonObject jsonObjectAcc;
 
+    /* BVP variables */
     private String bvpData;
     private File bvpcsvFile;
     private boolean bvpheader = true;
 
+    /* EDA variables */
     private String edaData;
     private File edacsvFile;
     private boolean edaheader = true;
 
+    /* IBI variables */
     private String ibiData;
     private File ibicsvFile;
     private boolean ibiheader = true;
 
+    /* Temperature variables */
     private String temperatureData;
     private File temperaturecsvFile;
     private boolean temperatureheader = true;
+
+    /* Data Observables */
+    private Observable obsAccStream;
+    private Observable obsBvpStream;
+    private Observable obsEdaStream;
+    private Observable obsIbiStream;
+    private Observable obsTempStream;
+    //endregion
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -103,7 +124,7 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
 
         setContentView(R.layout.activity_main);
 
-        // Initialize vars that reference UI components
+        //region Initialize vars that reference UI components
         statusLabel = (TextView) findViewById(R.id.status);
 
         dataCnt = (LinearLayout) findViewById(R.id.dataArea);
@@ -115,23 +136,29 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         accel_xLabel = (TextView) findViewById(R.id.accel_x);
         accel_yLabel = (TextView) findViewById(R.id.accel_y);
         accel_zLabel = (TextView) findViewById(R.id.accel_z);
-        acccsvFile = new File(getFilesDir(), time+" acc.txt");
+        //acccsvFile = new File(getFilesDir(), time+" acc.txt");
+        acccsvFile = new File(getFilesDir(), time+" acc.json");
 
         bvpLabel = (TextView) findViewById(R.id.bvp);
         bvpcsvFile = new File(getFilesDir(), time+" bvp.txt");
+        //bvpcsvFile = new File(getFilesDir(), time+" bvp.json");
 
         edaLabel = (TextView) findViewById(R.id.eda);
         edacsvFile = new File(getFilesDir(), time+" eda.txt");
+        //edacsvFile = new File(getFilesDir(), time+" eda.json");
 
         ibiLabel = (TextView) findViewById(R.id.ibi);
         ibicsvFile = new File(getFilesDir(), time+" ibi.txt");
+        //ibicsvFile = new File(getFilesDir(), time+" ibi.json");
 
         temperatureLabel = (TextView) findViewById(R.id.temperature);
         temperaturecsvFile = new File(getFilesDir(), time+" temp.txt");
+        //temperaturecsvFile = new File(getFilesDir(), time+" temp.json");
 
         batteryLabel = (TextView) findViewById(R.id.battery);
-        deviceNameLabel = (TextView) findViewById(R.id.deviceName);
 
+        deviceNameLabel = (TextView) findViewById(R.id.deviceName);
+        //endregion
 
         final Button disconnectButton = findViewById(R.id.disconnectButton);
 
@@ -154,16 +181,16 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         switch (requestCode) {
             case REQUEST_PERMISSION_ACCESS_COARSE_LOCATION:
-                // If request is cancelled, the result arrays are empty.
+                // If request is cancelled, the result arrays are empty
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // Permission was granted, yay!
+                    // Permission was granted
                     initEmpaticaDeviceManager();
                 } else {
-                    // Permission denied, boo!
+                    // Permission denied
                     final boolean needRationale = ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_COARSE_LOCATION);
                     new AlertDialog.Builder(this)
                             .setTitle("Permission required")
-                            .setMessage("Without this permission bluetooth low energy devices cannot be found, allow it in order to connect to the device.")
+                            .setMessage("Without this permission bluetooth low energy devices cannot be found; allow it in order to connect to the device.")
                             .setPositiveButton("Retry", new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface dialog, int which) {
                                     // try again
@@ -242,9 +269,11 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
 
     @Override
     public void didDiscoverDevice(EmpaticaDevice bluetoothDevice, String deviceName, int rssi, boolean allowed) {
-        // Check if the discovered device can be used with your API key. If allowed is always false,
-        // the device is not linked with your API key. Please check your developer area at
-        // https://www.empatica.com/connect/developer.php
+        /*
+         Check if the discovered device can be used with your API key. If allowed is always false,
+         the device is not linked with your API key. Please check your developer area at
+         https://www.empatica.com/connect/developer.php
+        */
 
         Log.i(TAG, "didDiscoverDevice" + deviceName + "allowed: " + allowed);
 
@@ -258,7 +287,7 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
             } catch (ConnectionNotAllowedException e) {
                 // This should happen only if you try to connect when allowed == false.
                 Toast.makeText(MainActivity.this, "Sorry, you can't connect to this device", Toast.LENGTH_SHORT).show();
-                Log.e(TAG, "didDiscoverDevice" + deviceName + " allowed: " + allowed + " - ConnectionNotAllowedException", e);
+                Log.e(TAG, "didDiscoverDevice" + deviceName + "allowed: " + allowed + " - ConnectionNotAllowedException", e);
             }
         }
     }
@@ -320,8 +349,8 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         didUpdateOnWristStatus(status);
     }
 
-    @Override
-    public void didUpdateStatus(EmpaStatus status) {
+     @Override
+    public void didUpdateStatus(@NonNull EmpaStatus status) {
         // Update the UI
         updateLabel(statusLabel, status.name());
 
@@ -346,17 +375,31 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         }
     }
 
-    @Override
+    @Override // update and record accelerometer data
     public void didReceiveAcceleration(int x, int y, int z, double timestamp) {
+        /* Updating accelerometer labels converting values to String */
         updateLabel(accel_xLabel, "" + x);
         updateLabel(accel_yLabel, "" + y);
         updateLabel(accel_zLabel, "" + z);
+
+        /* Update accelerometer variables */
         accel_xData = Integer.toString(x);
         accel_yData = Integer.toString(y);
         accel_zData = Integer.toString(z);
         accel_time = Double.toString(timestamp);
+
         BufferedWriter bw = null;
+
+        /* Create JSON object that must be added to the file */
+        jsonObjectAcc = Json.createObjectBuilder()
+                .add("timestamp", timestamp)
+                .add("accX", accel_xData)
+                .add("accY", accel_yData)
+                .add("accZ", accel_zData)
+                .build().asJsonObject();
+
         try {
+            // if there's no file to write into, try creating one
             try {
                 if (!acccsvFile.exists()) {
                     acccsvFile.createNewFile();
@@ -368,23 +411,30 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
                 e.printStackTrace();
             }
 
+            // buffer initialization
             bw = new BufferedWriter(new FileWriter(acccsvFile, true));
 
+            /*
+            // create a header, if there's none
             if (accheader == false) {
                 bw.write("Timestamp, accX, accY, accZ");
-                bw.newLine(); // 개행
+                bw.newLine(); // new line
                 accheader = true;
             }
 
+            // create and initialize the variable containing the data
             String data = "";
             data = timestamp + "," + accel_xData + "," + accel_yData + "," + accel_zData;
 
             bw.write(data);
             bw.newLine();
+            */
+            bw.write(jsonObjectAcc.toString());
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
             try {
+                // empty the buffer
                 if (bw != null) {
                     bw.flush();
                     bw.close();
@@ -397,12 +447,15 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         return;
     }
 
-    @Override
+    @Override // update and record BVP data
     public void didReceiveBVP(float bvp, double timestamp) {
+        /* Update label and BVP data variable */
         updateLabel(bvpLabel, "" + bvp);
         bvpData = Float.toString(bvp);
+
         BufferedWriter bw = null;
         try {
+            // if there's no file to write into, try creating one
             try {
                 if (!bvpcsvFile.exists()) {
                     bvpcsvFile.createNewFile();
@@ -414,14 +467,17 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
                 e.printStackTrace();
             }
 
+            // buffer initialization
             bw = new BufferedWriter(new FileWriter(bvpcsvFile, true));
 
+            // create a header, if there's none
             if (bvpheader == false) {
                 bw.write("Timestamp, bvp");
-                bw.newLine(); // 개행
+                bw.newLine(); // new line
                 bvpheader = true;
             }
 
+            // create and initialize the variable containing the data
             String data = "";
             data = timestamp + "," + bvpData;
 
@@ -431,6 +487,7 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
             e.printStackTrace();
         } finally {
             try {
+                // empty the buffer
                 if (bw != null) {
                     bw.flush();
                     bw.close();
@@ -443,17 +500,20 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         return;
     }
 
-    @Override
+    @Override // update battery label
     public void didReceiveBatteryLevel(float battery, double timestamp) {
         updateLabel(batteryLabel, String.format("%.0f %%", battery * 100));
     }
 
-    @Override
+    @Override // update and record GSR (aka EDA) data
     public void didReceiveGSR(float gsr, double timestamp) {
+        /* Update label and BVP data variable */
         updateLabel(edaLabel, "" + gsr);
         edaData = Float.toString(gsr);
+
         BufferedWriter bw = null;
         try {
+            // if there's no file to write into, try creating one
             try {
                 if (!edacsvFile.exists()) {
                     edacsvFile.createNewFile();
@@ -467,21 +527,24 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
 
             bw = new BufferedWriter(new FileWriter(edacsvFile, true));
 
+            // create a header, if there's none
             if (edaheader == false) {
                 bw.write("Timestamp, eda");
                 bw.newLine(); // 개행
                 edaheader = true;
             }
 
+            // create and initialize the variable containing the data
             String data = "";
             data = timestamp + "," + edaData;
 
-            bw.write(data);
+            bw.write(data); // write the data
             bw.newLine();
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
             try {
+                // empty the buffer
                 if (bw != null) {
                     bw.flush();
                     bw.close();
@@ -494,11 +557,13 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         return;
     }
 
-    @Override
+    @Override // update and record IBI data
     public void didReceiveIBI(float ibi, double timestamp) {
         updateLabel(ibiLabel, "" + ibi);
         ibiData = Float.toString(ibi);
+
         BufferedWriter bw = null;
+
         try {
             try {
                 if (!ibicsvFile.exists()) {
@@ -540,11 +605,13 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         return;
     }
 
-    @Override
+    @Override // update and record temperature data
     public void didReceiveTemperature(float temp, double timestamp) {
         updateLabel(temperatureLabel, "" + temp);
         temperatureData = Float.toString(temp);
+
         BufferedWriter bw = null;
+
         try {
             try {
                 if (!temperaturecsvFile.exists()) {
@@ -601,13 +668,13 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
 
     }
 
-    @Override
+    @Override // show established connection
     public void didEstablishConnection() {
 
         show();
     }
 
-    @Override
+    @Override // on-wrist detection
     public void didUpdateOnWristStatus(@EmpaSensorStatus final int status) {
 
         runOnUiThread(new Runnable() {
@@ -627,6 +694,8 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         });
     }
 
+
+    //region LOCAL METHODS
     void show() {
 
         runOnUiThread(new Runnable() {
@@ -650,4 +719,5 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
             }
         });
     }
+    //endregion
 }
