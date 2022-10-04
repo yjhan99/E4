@@ -389,15 +389,15 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         accel_time = Double.toString(timestamp);
 
         BufferedWriter bw = null;
-
-        /* Create JSON object that must be added to the file */
+/*
+        /* Create JSON object that must be added to the file * /
         jsonObjectAcc = Json.createObjectBuilder()
                 .add("timestamp", timestamp)
                 .add("accX", accel_xData)
                 .add("accY", accel_yData)
                 .add("accZ", accel_zData)
                 .build().asJsonObject();
-
+*/
         try {
             // if there's no file to write into, try creating one
             try {
