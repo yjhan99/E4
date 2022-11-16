@@ -9,6 +9,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.TextUtils;
@@ -115,19 +116,19 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         accel_xLabel = (TextView) findViewById(R.id.accel_x);
         accel_yLabel = (TextView) findViewById(R.id.accel_y);
         accel_zLabel = (TextView) findViewById(R.id.accel_z);
-        acccsvFile = new File(getFilesDir(), time+" acc.txt");
+        acccsvFile = new File(getFilesDir(), time + " acc.txt");
 
         bvpLabel = (TextView) findViewById(R.id.bvp);
-        bvpcsvFile = new File(getFilesDir(), time+" bvp.txt");
+        bvpcsvFile = new File(getFilesDir(), time + " bvp.txt");
 
         edaLabel = (TextView) findViewById(R.id.eda);
-        edacsvFile = new File(getFilesDir(), time+" eda.txt");
+        edacsvFile = new File(getFilesDir(), time + " eda.txt");
 
         ibiLabel = (TextView) findViewById(R.id.ibi);
-        ibicsvFile = new File(getFilesDir(), time+" ibi.txt");
+        ibicsvFile = new File(getFilesDir(), time + " ibi.txt");
 
         temperatureLabel = (TextView) findViewById(R.id.temperature);
-        temperaturecsvFile = new File(getFilesDir(), time+" temp.txt");
+        temperaturecsvFile = new File(getFilesDir(), time + " temp.txt");
 
         batteryLabel = (TextView) findViewById(R.id.battery);
         deviceNameLabel = (TextView) findViewById(R.id.deviceName);
@@ -147,54 +148,156 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
             }
         });
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (this.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+                builder.setTitle("블루투스에 대한 액세스가 필요합니다");
+                builder.setMessage("어플리케이션이 블루투스를 감지 할 수 있도록 위치 정보 액세스 권한을 부여하십시오.");
+                builder.setPositiveButton(android.R.string.ok, null);
+
+                builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
+
+                    @Override
+                    public void onDismiss(DialogInterface dialog) {
+                        requestPermissions(new String[]{Manifest.permission.BLUETOOTH_SCAN}, 2 );
+                    }
+                });
+                builder.show();
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (this.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+                builder.setTitle("블루투스에 대한 액세스가 필요합니다");
+                builder.setMessage("어플리케이션이 블루투스를 연결 할 수 있도록 위치 정보 액세스 권한을 부여하십시오.");
+                builder.setPositiveButton(android.R.string.ok, null);
+
+                builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
+
+                    @Override
+                    public void onDismiss(DialogInterface dialog) {
+                        requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 3 );
+                    }
+                });
+                builder.show();
+            }
+        }
+
         initEmpaticaDeviceManager();
     }
 
+//    @Override
+//    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+//        switch (requestCode) {
+//            case REQUEST_PERMISSION_ACCESS_COARSE_LOCATION:
+//                // If request is cancelled, the result arrays are empty.
+//                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+//                    // Permission was granted, yay!
+//                    initEmpaticaDeviceManager();
+//                } else {
+//                    // Permission denied, boo!
+//                    final boolean needRationale = ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_COARSE_LOCATION);
+//                    new AlertDialog.Builder(this)
+//                            .setTitle("Permission required")
+//                            .setMessage("Without this permission bluetooth low energy devices cannot be found, allow it in order to connect to the device.")
+//                            .setPositiveButton("Retry", new DialogInterface.OnClickListener() {
+//                                public void onClick(DialogInterface dialog, int which) {
+//                                    // try again
+//                                    if (needRationale) {
+//                                        // the "never ask again" flash is not set, try again with permission request
+//                                        initEmpaticaDeviceManager();
+//                                    } else {
+//                                        // the "never ask again" flag is set so the permission requests is disabled, try open app settings to enable the permission
+//                                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+//                                        Uri uri = Uri.fromParts("package", getPackageName(), null);
+//                                        intent.setData(uri);
+//                                        startActivity(intent);
+//                                    }
+//                                }
+//                            })
+//                            .setNegativeButton("Exit application", new DialogInterface.OnClickListener() {
+//                                public void onClick(DialogInterface dialog, int which) {
+//                                    // without permission exit is the only way
+//                                    finish();
+//                                }
+//                            })
+//                            .show();
+//                }
+//                break;
+//        }
+//    }
+
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
         switch (requestCode) {
-            case REQUEST_PERMISSION_ACCESS_COARSE_LOCATION:
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // Permission was granted, yay!
-                    initEmpaticaDeviceManager();
+            case REQUEST_PERMISSION_ACCESS_COARSE_LOCATION: {
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d("디버깅", "coarse location permission granted");
                 } else {
-                    // Permission denied, boo!
-                    final boolean needRationale = ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_COARSE_LOCATION);
-                    new AlertDialog.Builder(this)
-                            .setTitle("Permission required")
-                            .setMessage("Without this permission bluetooth low energy devices cannot be found, allow it in order to connect to the device.")
-                            .setPositiveButton("Retry", new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface dialog, int which) {
-                                    // try again
-                                    if (needRationale) {
-                                        // the "never ask again" flash is not set, try again with permission request
-                                        initEmpaticaDeviceManager();
-                                    } else {
-                                        // the "never ask again" flag is set so the permission requests is disabled, try open app settings to enable the permission
-                                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                                        Uri uri = Uri.fromParts("package", getPackageName(), null);
-                                        intent.setData(uri);
-                                        startActivity(intent);
-                                    }
-                                }
-                            })
-                            .setNegativeButton("Exit application", new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface dialog, int which) {
-                                    // without permission exit is the only way
-                                    finish();
-                                }
-                            })
-                            .show();
+                    final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                    builder.setTitle("권한 제한");
+                    builder.setMessage("위치 정보 및 액세스 권한이 허용되지 않았으므로 블루투스를 검색 및 연결할수 없습니다.");
+                    builder.setPositiveButton(android.R.string.ok, null);
+                    builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
+
+                        @Override
+                        public void onDismiss(DialogInterface dialog) {
+                        }
+
+                    });
+                    builder.show();
                 }
                 break;
+            }
+            case 2: {
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d("디버깅", "coarse location permission granted");
+                } else {
+                    final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                    builder.setTitle("권한 제한");
+                    builder.setMessage("블루투스 스캔권한이 허용되지 않았습니다.");
+                    builder.setPositiveButton(android.R.string.ok, null);
+                    builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
+
+                        @Override
+                        public void onDismiss(DialogInterface dialog) {
+                        }
+
+                    });
+                    builder.show();
+                }
+                break;
+            }
+            case 3: {
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d("디버깅", "coarse location permission granted");
+                } else {
+                    final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                    builder.setTitle("권한 제한");
+                    builder.setMessage("블루투스 연결 권한이 허용되지 않았습니다.");
+                    builder.setPositiveButton(android.R.string.ok, null);
+                    builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
+
+                        @Override
+                        public void onDismiss(DialogInterface dialog) {
+                        }
+
+                    });
+                    builder.show();
+                }
+                break;
+            }
         }
+        return;
     }
 
     private void initEmpaticaDeviceManager() {
         // Android 6 (API level 23) now require ACCESS_COARSE_LOCATION permission to use BLE
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[] { Manifest.permission.ACCESS_FINE_LOCATION }, REQUEST_PERMISSION_ACCESS_COARSE_LOCATION);
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_PERMISSION_ACCESS_COARSE_LOCATION);
         } else {
 
             if (TextUtils.isEmpty(EMPATICA_API_KEY)) {
@@ -272,19 +375,19 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
         */
         switch (errorCode) {
             case ScanCallback.SCAN_FAILED_ALREADY_STARTED:
-                Log.e(TAG,"Scan failed: a BLE scan with the same settings is already started by the app");
+                Log.e(TAG, "Scan failed: a BLE scan with the same settings is already started by the app");
                 break;
             case ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED:
-                Log.e(TAG,"Scan failed: app cannot be registered");
+                Log.e(TAG, "Scan failed: app cannot be registered");
                 break;
             case ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED:
-                Log.e(TAG,"Scan failed: power optimized scan feature is not supported");
+                Log.e(TAG, "Scan failed: power optimized scan feature is not supported");
                 break;
             case ScanCallback.SCAN_FAILED_INTERNAL_ERROR:
-                Log.e(TAG,"Scan failed: internal error");
+                Log.e(TAG, "Scan failed: internal error");
                 break;
             default:
-                Log.e(TAG,"Scan failed with unknown error (errorCode=" + errorCode + ")");
+                Log.e(TAG, "Scan failed with unknown error (errorCode=" + errorCode + ")");
                 break;
         }
     }
@@ -293,6 +396,16 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
     public void didRequestEnableBluetooth() {
         // Request the user to enable Bluetooth
         Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
         startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
     }
 
@@ -650,4 +763,5 @@ public class MainActivity extends AppCompatActivity implements EmpaDataDelegate,
             }
         });
     }
+
 }
